@@ -15,9 +15,6 @@ done
 #sed -i s/DB_USERNAME=pterodactyl/DB_USERNAME=$DB_USERNAME/g /app/.env
 #sed -i s/DB_PASSWORD=/DB_PASSWORD=$DB_PASSWORD/g /app/.env
 
-#chown -R www-data:www-data .
-chmod -R 777 storage/* bootstrap/cache /var/run/php /app/.env
-
 if [ "$(cat .env)" == "" ]; then
   cat /app/.env.example > /app/.env
 fi

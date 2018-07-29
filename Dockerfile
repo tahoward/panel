@@ -43,7 +43,7 @@ RUN cp .env.example .env && composer install --no-dev
 
 EXPOSE 80 443
 
-RUN chown -R www-data:www-data . && chmod -R 755 storage/* bootstrap/cache /var/run/php
+RUN chown -R www-data:www-data . && chmod -R 755 storage/* bootstrap/cache
 
 ENTRYPOINT ["ash", ".dev/entrypoint.sh"]
 

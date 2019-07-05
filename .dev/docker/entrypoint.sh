@@ -28,24 +28,10 @@ else
   ln -s /app/var/.env /app/
 fi
 
-echo "Checking if https is required."
-if [ -f /etc/nginx/conf.d/default.conf ]; then
-  echo "Using nginx config already in place."
-else
-  echo "Checking if letsencrypt email is set."
-  if [ -z $LE_EMAIL ]; then
-    echo "No letsencrypt email is set Failing to http."
-    cp .dev/docker/default.conf /etc/nginx/conf.d/default.conf
-    
-  else
-    echo "writing ssl config"
-    cp .dev/docker/default_ssl.conf /etc/nginx/conf.d/default.conf
-    echo "updating ssl config for domain"
-    sed -i "s|<domain>|$(echo $APP_URL | sed 's~http[s]*://~~g')|g" /etc/nginx/conf.d/default.conf
-    echo "generating certs"
-    certbot certonly -d $(echo $APP_URL | sed 's~http[s]*://~~g')  --standalone -m $LE_EMAIL --agree-tos -n
-  fi
-fi
+echo "writing ssl config"
+cp .dev/docker/default_ssl.conf /etc/nginx/conf.d/default.conf
+echo "updating ssl config for domain"
+sed -i "s|<domain>|$(echo $APP_URL | sed 's~http[s]*://~~g')|g" /etc/nginx/conf.d/default.conf
 
 ## check for DB up before starting the panel
 echo "Checking database status."

@@ -9,11 +9,7 @@ return [
     | change this value if you are not maintaining your own internal versions.
     */
 
-<<<<<<< HEAD
-    'version' => '0.7.15',
-=======
     'version' => '0.7.16',
->>>>>>> 29de2085f2eddd9dc1e91a4ea202b5f47264a278
 
     /*
     |--------------------------------------------------------------------------

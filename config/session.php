@@ -28,7 +28,7 @@ return [
     |
     */
 
-    'lifetime' => env('SESSION_LIFETIME', 10080),
+    'lifetime' => env('SESSION_LIFETIME', 720),
 
     'expire_on_close' => false,
 
@@ -188,5 +188,5 @@ return [
     |
     */
 
-    'same_site' => null,
+    'same_site' => env('SESSION_SAMESITE_COOKIE', 'lax'),
 ];

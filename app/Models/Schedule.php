@@ -2,21 +2,37 @@
 
 namespace Pterodactyl\Models;
 
-use Sofa\Eloquence\Eloquence;
-use Sofa\Eloquence\Validable;
-use Illuminate\Database\Eloquent\Model;
-use Sofa\Eloquence\Contracts\CleansAttributes;
-use Sofa\Eloquence\Contracts\Validable as ValidableContract;
+use Cron\CronExpression;
+use Carbon\CarbonImmutable;
+use Illuminate\Container\Container;
+use Pterodactyl\Contracts\Extensions\HashidsInterface;
 
-class Schedule extends Model implements CleansAttributes, ValidableContract
+/**
+ * @property int $id
+ * @property int $server_id
+ * @property string $name
+ * @property string $cron_day_of_week
+ * @property string $cron_month
+ * @property string $cron_day_of_month
+ * @property string $cron_hour
+ * @property string $cron_minute
+ * @property bool $is_active
+ * @property bool $is_processing
+ * @property \Carbon\Carbon|null $last_run_at
+ * @property \Carbon\Carbon|null $next_run_at
+ * @property \Carbon\Carbon $created_at
+ * @property \Carbon\Carbon $updated_at
+ * @property string $hashid
+ * @property \Pterodactyl\Models\Server $server
+ * @property \Pterodactyl\Models\Task[]|\Illuminate\Support\Collection $tasks
+ */
+class Schedule extends Model
 {
-    use Eloquence, Validable;
-
     /**
      * The resource name for this model when it is transformed into an
      * API representation using fractal.
      */
-    const RESOURCE_NAME = 'server_schedule';
+    public const RESOURCE_NAME = 'server_schedule';
 
     /**
      * The table associated with the model.
@@ -24,6 +40,13 @@ class Schedule extends Model implements CleansAttributes, ValidableContract
      * @var string
      */
     protected $table = 'schedules';
+
+    /**
+     * Always return the tasks associated with this schedule.
+     *
+     * @var array
+     */
+    protected $with = ['tasks'];
 
     /**
      * Mass assignable attributes on this model.
@@ -34,6 +57,7 @@ class Schedule extends Model implements CleansAttributes, ValidableContract
         'server_id',
         'name',
         'cron_day_of_week',
+        'cron_month',
         'cron_day_of_month',
         'cron_hour',
         'cron_minute',
@@ -59,8 +83,6 @@ class Schedule extends Model implements CleansAttributes, ValidableContract
      * @var array
      */
     protected $dates = [
-        self::CREATED_AT,
-        self::UPDATED_AT,
         'last_run_at',
         'next_run_at',
     ];
@@ -71,6 +93,7 @@ class Schedule extends Model implements CleansAttributes, ValidableContract
     protected $attributes = [
         'name' => null,
         'cron_day_of_week' => '*',
+        'cron_month' => '*',
         'cron_day_of_month' => '*',
         'cron_hour' => '*',
         'cron_minute' => '*',
@@ -81,29 +104,34 @@ class Schedule extends Model implements CleansAttributes, ValidableContract
     /**
      * @var array
      */
-    protected static $applicationRules = [
-        'server_id' => 'required',
-        'cron_day_of_week' => 'required',
-        'cron_day_of_month' => 'required',
-        'cron_hour' => 'required',
-        'cron_minute' => 'required',
-    ];
-
-    /**
-     * @var array
-     */
-    protected static $dataIntegrityRules = [
-        'server_id' => 'exists:servers,id',
-        'name' => 'nullable|string|max:255',
-        'cron_day_of_week' => 'string',
-        'cron_day_of_month' => 'string',
-        'cron_hour' => 'string',
-        'cron_minute' => 'string',
+    public static $validationRules = [
+        'server_id' => 'required|exists:servers,id',
+        'name' => 'required|string|max:191',
+        'cron_day_of_week' => 'required|string',
+        'cron_month' => 'required|string',
+        'cron_day_of_month' => 'required|string',
+        'cron_hour' => 'required|string',
+        'cron_minute' => 'required|string',
         'is_active' => 'boolean',
         'is_processing' => 'boolean',
         'last_run_at' => 'nullable|date',
         'next_run_at' => 'nullable|date',
     ];
+
+    /**
+     * Returns the schedule's execution crontab entry as a string.
+     *
+     * @return \Carbon\CarbonImmutable
+     * @throws \Exception
+     */
+    public function getNextRunDate()
+    {
+        $formatted = sprintf('%s %s %s %s %s', $this->cron_minute, $this->cron_hour, $this->cron_day_of_month, $this->cron_month, $this->cron_day_of_week);
+
+        return CarbonImmutable::createFromTimestamp(
+            (new CronExpression($formatted))->getNextRunDate()->getTimestamp()
+        );
+    }
 
     /**
      * Return a hashid encoded string to represent the ID of the schedule.
@@ -112,7 +140,7 @@ class Schedule extends Model implements CleansAttributes, ValidableContract
      */
     public function getHashidAttribute()
     {
-        return app()->make('hashids')->encode($this->id);
+        return Container::getInstance()->make(HashidsInterface::class)->encode($this->id);
     }
 
     /**

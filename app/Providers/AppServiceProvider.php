@@ -7,10 +7,11 @@ use Cache;
 use Pterodactyl\Models\User;
 use Pterodactyl\Models\Server;
 use Pterodactyl\Models\Subuser;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Schema;
-use Igaster\LaravelTheme\Facades\Theme;
 use Illuminate\Support\ServiceProvider;
 use Pterodactyl\Observers\UserObserver;
+use Pterodactyl\Extensions\Themes\Theme;
 use Pterodactyl\Observers\ServerObserver;
 use Pterodactyl\Observers\SubuserObserver;
 
@@ -29,7 +30,8 @@ class AppServiceProvider extends ServiceProvider
 
         View::share('appVersion', $this->versionData()['version'] ?? 'undefined');
         View::share('appIsGit', $this->versionData()['is_git'] ?? false);
-        Theme::setSetting('cache-version', md5($this->versionData()['version'] ?? 'undefined'));
+
+        Paginator::useBootstrap();
     }
 
     /**
@@ -39,9 +41,13 @@ class AppServiceProvider extends ServiceProvider
     {
         // Only load the settings service provider if the environment
         // is configured to allow it.
-        if (! config('pterodactyl.load_environment_only', false) && $this->app->environment() !== 'testing') {
+        if (!config('pterodactyl.load_environment_only', false) && $this->app->environment() !== 'testing') {
             $this->app->register(SettingsServiceProvider::class);
         }
+
+        $this->app->singleton('extensions.themes', function () {
+            return new Theme();
+        });
     }
 
     /**

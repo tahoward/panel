@@ -1,11 +1,6 @@
 <?php
 
 return [
-    'key' => [
-        'warning' => 'It appears you have already configured an application encryption key. Continuing with this process with overwrite that key and cause data corruption for any existing encrypted data. DO NOT CONTINUE UNLESS YOU KNOW WHAT YOU ARE DOING.',
-        'confirm' => 'I understand the consequences of performing this command and accept all responsibility for the loss of encrypted data.',
-        'final_confirm' => 'Are you sure you wish to continue? Changing the application encryption key WILL CAUSE DATA LOSS.',
-    ],
     'location' => [
         'no_location_found' => 'Could not locate a record matching the provided short code.',
         'ask_short' => 'Location Short Code',
@@ -14,7 +9,7 @@ return [
         'deleted' => 'Successfully deleted the requested location.',
     ],
     'user' => [
-        'search_users' => 'Enter a Username, UUID, or Email Address',
+        'search_users' => 'Enter a Username, User ID, or Email Address',
         'select_search_user' => 'ID of user to delete (Enter \'0\' to re-search)',
         'deleted' => 'User successfully deleted from the Panel.',
         'confirm_delete' => 'Are you sure you want to delete this user from the Panel?',
@@ -42,6 +37,10 @@ return [
     ],
     'server' => [
         'rebuild_failed' => 'Rebuild request for ":name" (#:id) on node ":node" failed with error: :message',
+        'reinstall' => [
+            'failed' => 'Reinstall request for ":name" (#:id) on node ":node" failed with error: :message',
+            'confirm' => 'You are about to reinstall against a group of servers. Do you wish to continue?',
+        ],
         'power' => [
             'confirm' => 'You are about to perform a :action against :count servers. Do you wish to continue?',
             'action_failed' => 'Power action request for ":name" (#:id) on node ":node" failed with error: :message',

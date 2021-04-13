@@ -1,15 +1,10 @@
 <?php
-/**
- * Pterodactyl - Panel
- * Copyright (c) 2015 - 2017 Dane Everitt <dane@daneeveritt.com>.
- *
- * This software is licensed under the terms of the MIT license.
- * https://opensource.org/licenses/MIT
- */
 
 namespace Pterodactyl\Services\Eggs\Sharing;
 
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
+use Pterodactyl\Models\EggVariable;
 use Pterodactyl\Contracts\Repository\EggRepositoryInterface;
 
 class EggExporterService
@@ -21,8 +16,6 @@ class EggExporterService
 
     /**
      * EggExporterService constructor.
-     *
-     * @param \Pterodactyl\Contracts\Repository\EggRepositoryInterface $repository
      */
     public function __construct(EggRepositoryInterface $repository)
     {
@@ -31,9 +24,6 @@ class EggExporterService
 
     /**
      * Return a JSON representation of an egg and its variables.
-     *
-     * @param int $egg
-     * @return string
      *
      * @throws \Pterodactyl\Exceptions\Repository\RecordNotFoundException
      */
@@ -45,12 +35,17 @@ class EggExporterService
             '_comment' => 'DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO',
             'meta' => [
                 'version' => 'PTDL_v1',
+                'update_url' => $egg->update_url,
             ],
             'exported_at' => Carbon::now()->toIso8601String(),
             'name' => $egg->name,
             'author' => $egg->author,
             'description' => $egg->description,
-            'image' => $egg->docker_image,
+            'features' => $egg->features,
+            'images' => $egg->docker_images,
+            'file_denylist' => Collection::make($egg->inherit_file_denylist)->filter(function ($value) {
+                return !empty($value);
+            }),
             'startup' => $egg->startup,
             'config' => [
                 'files' => $egg->inherit_config_files,
@@ -65,10 +60,10 @@ class EggExporterService
                     'entrypoint' => $egg->copy_script_entry,
                 ],
             ],
-            'variables' => $egg->variables->transform(function ($item) {
-                return collect($item->toArray())->except([
-                    'id', 'egg_id', 'created_at', 'updated_at',
-                ])->toArray();
+            'variables' => $egg->variables->transform(function (EggVariable $item) {
+                return Collection::make($item->toArray())
+                    ->except(['id', 'egg_id', 'created_at', 'updated_at'])
+                    ->toArray();
             }),
         ];
 

@@ -10,12 +10,13 @@ class StoreApplicationApiKeyRequest extends AdminFormRequest
 {
     /**
      * @return array
+     *
      * @throws \ReflectionException
      * @throws \ReflectionException
      */
     public function rules()
     {
-        $modelRules = ApiKey::getCreateRules();
+        $modelRules = ApiKey::getRules();
 
         return collect(AdminAcl::getResourceList())->mapWithKeys(function ($resource) use ($modelRules) {
             return [AdminAcl::COLUMN_IDENTIFIER . $resource => $modelRules['r_' . $resource]];

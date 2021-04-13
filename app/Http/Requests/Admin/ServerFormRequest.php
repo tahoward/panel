@@ -1,11 +1,4 @@
 <?php
-/**
- * Pterodactyl - Panel
- * Copyright (c) 2015 - 2017 Dane Everitt <dane@daneeveritt.com>.
- *
- * This software is licensed under the terms of the MIT license.
- * https://opensource.org/licenses/MIT
- */
 
 namespace Pterodactyl\Http\Requests\Admin;
 
@@ -21,8 +14,9 @@ class ServerFormRequest extends AdminFormRequest
      */
     public function rules()
     {
-        $rules = Server::getCreateRules();
+        $rules = Server::getRules();
         $rules['description'][] = 'nullable';
+        $rules['custom_image'] = 'sometimes|nullable|string';
 
         return $rules;
     }
@@ -36,7 +30,7 @@ class ServerFormRequest extends AdminFormRequest
     {
         $validator->after(function ($validator) {
             $validator->sometimes('node_id', 'required|numeric|bail|exists:nodes,id', function ($input) {
-                return ! ($input->auto_deploy);
+                return !($input->auto_deploy);
             });
 
             $validator->sometimes('allocation_id', [
@@ -48,7 +42,7 @@ class ServerFormRequest extends AdminFormRequest
                     $query->whereNull('server_id');
                 }),
             ], function ($input) {
-                return ! ($input->auto_deploy);
+                return !($input->auto_deploy);
             });
 
             $validator->sometimes('allocation_additional.*', [
@@ -60,16 +54,7 @@ class ServerFormRequest extends AdminFormRequest
                     $query->whereNull('server_id');
                 }),
             ], function ($input) {
-                return ! ($input->auto_deploy);
-            });
-
-            $validator->sometimes('pack_id', [
-                Rule::exists('packs', 'id')->where(function ($query) {
-                    $query->where('selectable', 1);
-                    $query->where('egg_id', $this->input('egg_id'));
-                }),
-            ], function ($input) {
-                return $input->pack_id !== 0 && $input->pack_id !== null;
+                return !($input->auto_deploy);
             });
         });
     }

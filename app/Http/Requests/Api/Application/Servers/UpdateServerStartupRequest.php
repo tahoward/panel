@@ -20,18 +20,15 @@ class UpdateServerStartupRequest extends ApplicationApiRequest
 
     /**
      * Validation rules to run the input against.
-     *
-     * @return array
      */
     public function rules(): array
     {
-        $data = Server::getUpdateRulesForId($this->getModel(Server::class)->id);
+        $data = Server::getRulesForUpdate($this->getModel(Server::class));
 
         return [
             'startup' => $data['startup'],
             'environment' => 'present|array',
             'egg' => $data['egg_id'],
-            'pack' => $data['pack_id'],
             'image' => $data['image'],
             'skip_scripts' => 'present|boolean',
         ];
@@ -48,7 +45,6 @@ class UpdateServerStartupRequest extends ApplicationApiRequest
 
         return collect($data)->only(['startup', 'environment', 'skip_scripts'])->merge([
             'egg_id' => array_get($data, 'egg'),
-            'pack_id' => array_get($data, 'pack'),
             'docker_image' => array_get($data, 'image'),
         ])->toArray();
     }

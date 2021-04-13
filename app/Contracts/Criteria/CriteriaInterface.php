@@ -16,8 +16,8 @@ interface CriteriaInterface
     /**
      * Apply selected criteria to a repository call.
      *
-     * @param \Illuminate\Database\Eloquent\Model  $model
-     * @param \Pterodactyl\Repositories\Repository $repository
+     * @param \Illuminate\Database\Eloquent\Model $model
+     *
      * @return mixed
      */
     public function apply($model, Repository $repository);

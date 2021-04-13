@@ -20,10 +20,10 @@ class NodeFormRequest extends AdminFormRequest
     public function rules()
     {
         if ($this->method() === 'PATCH') {
-            return Node::getUpdateRulesForId($this->route()->parameter('node')->id);
+            return Node::getRulesForUpdate($this->route()->parameter('node'));
         }
 
-        return Node::getCreateRules();
+        return Node::getRules();
     }
 
     /**
@@ -35,7 +35,7 @@ class NodeFormRequest extends AdminFormRequest
     {
         $validator->after(function ($validator) {
             // Check that the FQDN is a valid IP address.
-            if (! filter_var(gethostbyname($this->input('fqdn')), FILTER_VALIDATE_IP)) {
+            if (!filter_var(gethostbyname($this->input('fqdn')), FILTER_VALIDATE_IP)) {
                 $validator->errors()->add('fqdn', trans('admin/node.validation.fqdn_not_resolvable'));
             }
 

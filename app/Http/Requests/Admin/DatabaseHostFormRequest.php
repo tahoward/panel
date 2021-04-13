@@ -12,10 +12,10 @@ class DatabaseHostFormRequest extends AdminFormRequest
     public function rules()
     {
         if ($this->method() !== 'POST') {
-            return DatabaseHost::getUpdateRulesForId($this->route()->parameter('host'));
+            return DatabaseHost::getRulesForUpdate($this->route()->parameter('host'));
         }
 
-        return DatabaseHost::getCreateRules();
+        return DatabaseHost::getRules();
     }
 
     /**
@@ -25,13 +25,9 @@ class DatabaseHostFormRequest extends AdminFormRequest
      */
     protected function getValidatorInstance()
     {
-        if (! $this->filled('node_id')) {
+        if (!$this->filled('node_id')) {
             $this->merge(['node_id' => null]);
         }
-
-        $this->merge([
-            'host' => gethostbyname($this->input('host')),
-        ]);
 
         return parent::getValidatorInstance();
     }

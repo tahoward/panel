@@ -21,6 +21,7 @@ class SettingsServiceProvider extends ServiceProvider
     protected $keys = [
         'app:name',
         'app:locale',
+        'app:analytics',
         'recaptcha:enabled',
         'recaptcha:secret_key',
         'recaptcha:website_key',
@@ -29,6 +30,9 @@ class SettingsServiceProvider extends ServiceProvider
         'pterodactyl:console:count',
         'pterodactyl:console:frequency',
         'pterodactyl:auth:2fa_required',
+        'pterodactyl:client_features:allocations:enabled',
+        'pterodactyl:client_features:allocations:range_start',
+        'pterodactyl:client_features:allocations:range_end',
     ];
 
     /**
@@ -59,11 +63,6 @@ class SettingsServiceProvider extends ServiceProvider
 
     /**
      * Boot the service provider.
-     *
-     * @param \Illuminate\Contracts\Config\Repository                       $config
-     * @param \Illuminate\Contracts\Encryption\Encrypter                    $encrypter
-     * @param \Psr\Log\LoggerInterface                                      $log
-     * @param \Pterodactyl\Contracts\Repository\SettingsRepositoryInterface $settings
      */
     public function boot(ConfigRepository $config, Encrypter $encrypter, Log $log, SettingsRepositoryInterface $settings)
     {
@@ -114,9 +113,6 @@ class SettingsServiceProvider extends ServiceProvider
         }
     }
 
-    /**
-     * @return array
-     */
     public static function getEncryptedKeys(): array
     {
         return self::$encrypted;

@@ -2,21 +2,24 @@
 
 namespace Pterodactyl\Models;
 
-use Sofa\Eloquence\Eloquence;
-use Sofa\Eloquence\Validable;
-use Illuminate\Database\Eloquent\Model;
-use Sofa\Eloquence\Contracts\CleansAttributes;
-use Sofa\Eloquence\Contracts\Validable as ValidableContract;
-
-class Nest extends Model implements CleansAttributes, ValidableContract
+/**
+ * @property int $id
+ * @property string $uuid
+ * @property string $author
+ * @property string $name
+ * @property string|null $description
+ * @property \Carbon\Carbon $created_at
+ * @property \Carbon\Carbon $updated_at
+ * @property \Illuminate\Database\Eloquent\Collection|\Pterodactyl\Models\Server[] $servers
+ * @property \Illuminate\Database\Eloquent\Collection|\Pterodactyl\Models\Egg[] $eggs
+ */
+class Nest extends Model
 {
-    use Eloquence, Validable;
-
     /**
      * The resource name for this model when it is transformed into an
      * API representation using fractal.
      */
-    const RESOURCE_NAME = 'nest';
+    public const RESOURCE_NAME = 'nest';
 
     /**
      * The table associated with the model.
@@ -38,18 +41,9 @@ class Nest extends Model implements CleansAttributes, ValidableContract
     /**
      * @var array
      */
-    protected static $applicationRules = [
-        'author' => 'required',
-        'name' => 'required',
-        'description' => 'sometimes',
-    ];
-
-    /**
-     * @var array
-     */
-    protected static $dataIntegrityRules = [
-        'author' => 'string|email',
-        'name' => 'string|max:255',
+    public static $validationRules = [
+        'author' => 'required|string|email',
+        'name' => 'required|string|max:191',
         'description' => 'nullable|string',
     ];
 
@@ -61,16 +55,6 @@ class Nest extends Model implements CleansAttributes, ValidableContract
     public function eggs()
     {
         return $this->hasMany(Egg::class);
-    }
-
-    /**
-     * Returns all of the packs associated with a nest, regardless of the egg.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\HasManyThrough
-     */
-    public function packs()
-    {
-        return $this->hasManyThrough(Pack::class, Egg::class, 'nest_id', 'egg_id');
     }
 
     /**

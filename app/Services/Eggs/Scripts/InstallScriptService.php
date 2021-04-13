@@ -1,11 +1,4 @@
 <?php
-/**
- * Pterodactyl - Panel
- * Copyright (c) 2015 - 2017 Dane Everitt <dane@daneeveritt.com>.
- *
- * This software is licensed under the terms of the MIT license.
- * https://opensource.org/licenses/MIT
- */
 
 namespace Pterodactyl\Services\Eggs\Scripts;
 
@@ -22,8 +15,6 @@ class InstallScriptService
 
     /**
      * InstallScriptService constructor.
-     *
-     * @param \Pterodactyl\Contracts\Repository\EggRepositoryInterface $repository
      */
     public function __construct(EggRepositoryInterface $repository)
     {
@@ -34,20 +25,15 @@ class InstallScriptService
      * Modify the install script for a given Egg.
      *
      * @param int|\Pterodactyl\Models\Egg $egg
-     * @param array                       $data
      *
      * @throws \Pterodactyl\Exceptions\Model\DataValidationException
      * @throws \Pterodactyl\Exceptions\Repository\RecordNotFoundException
      * @throws \Pterodactyl\Exceptions\Service\Egg\InvalidCopyFromException
      */
-    public function handle($egg, array $data)
+    public function handle(Egg $egg, array $data)
     {
-        if (! $egg instanceof Egg) {
-            $egg = $this->repository->find($egg);
-        }
-
-        if (! is_null(array_get($data, 'copy_script_from'))) {
-            if (! $this->repository->isCopyableScript(array_get($data, 'copy_script_from'), $egg->nest_id)) {
+        if (!is_null(array_get($data, 'copy_script_from'))) {
+            if (!$this->repository->isCopyableScript(array_get($data, 'copy_script_from'), $egg->nest_id)) {
                 throw new InvalidCopyFromException(trans('exceptions.nest.egg.invalid_copy_id'));
             }
         }

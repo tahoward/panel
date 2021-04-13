@@ -20,13 +20,10 @@ class StoreUserRequest extends ApplicationApiRequest
 
     /**
      * Return the validation rules for this request.
-     *
-     * @param array|null $rules
-     * @return array
      */
     public function rules(array $rules = null): array
     {
-        $rules = $rules ?? User::getCreateRules();
+        $rules = $rules ?? User::getRules();
 
         $response = collect($rules)->only([
             'external_id',

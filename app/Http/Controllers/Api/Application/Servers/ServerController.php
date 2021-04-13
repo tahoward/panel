@@ -5,6 +5,7 @@ namespace Pterodactyl\Http\Controllers\Api\Application\Servers;
 use Illuminate\Http\Response;
 use Pterodactyl\Models\Server;
 use Illuminate\Http\JsonResponse;
+use Spatie\QueryBuilder\QueryBuilder;
 use Pterodactyl\Services\Servers\ServerCreationService;
 use Pterodactyl\Services\Servers\ServerDeletionService;
 use Pterodactyl\Contracts\Repository\ServerRepositoryInterface;
@@ -34,10 +35,6 @@ class ServerController extends ApplicationApiController
 
     /**
      * ServerController constructor.
-     *
-     * @param \Pterodactyl\Services\Servers\ServerCreationService         $creationService
-     * @param \Pterodactyl\Services\Servers\ServerDeletionService         $deletionService
-     * @param \Pterodactyl\Contracts\Repository\ServerRepositoryInterface $repository
      */
     public function __construct(
         ServerCreationService $creationService,
@@ -53,13 +50,13 @@ class ServerController extends ApplicationApiController
 
     /**
      * Return all of the servers that currently exist on the Panel.
-     *
-     * @param \Pterodactyl\Http\Requests\Api\Application\Servers\GetServersRequest $request
-     * @return array
      */
     public function index(GetServersRequest $request): array
     {
-        $servers = $this->repository->setSearchTerm($request->input('search'))->paginated(50);
+        $servers = QueryBuilder::for(Server::query())
+            ->allowedFilters(['uuid', 'name', 'image', 'external_id'])
+            ->allowedSorts(['id', 'uuid'])
+            ->paginate($request->query('per_page') ?? 50);
 
         return $this->fractal->collection($servers)
             ->transformWith($this->getTransformer(ServerTransformer::class))
@@ -69,12 +66,9 @@ class ServerController extends ApplicationApiController
     /**
      * Create a new server on the system.
      *
-     * @param \Pterodactyl\Http\Requests\Api\Application\Servers\StoreServerRequest $request
-     * @return \Illuminate\Http\JsonResponse
-     *
+     * @throws \Throwable
      * @throws \Illuminate\Validation\ValidationException
      * @throws \Pterodactyl\Exceptions\DisplayException
-     * @throws \Pterodactyl\Exceptions\Http\Connection\DaemonConnectionException
      * @throws \Pterodactyl\Exceptions\Model\DataValidationException
      * @throws \Pterodactyl\Exceptions\Repository\RecordNotFoundException
      * @throws \Pterodactyl\Exceptions\Service\Deployment\NoViableAllocationException
@@ -91,9 +85,6 @@ class ServerController extends ApplicationApiController
 
     /**
      * Show a single server transformed for the application API.
-     *
-     * @param \Pterodactyl\Http\Requests\Api\Application\Servers\GetServerRequest $request
-     * @return array
      */
     public function view(GetServerRequest $request): array
     {
@@ -103,11 +94,6 @@ class ServerController extends ApplicationApiController
     }
 
     /**
-     * @param \Pterodactyl\Http\Requests\Api\Application\Servers\ServerWriteRequest $request
-     * @param \Pterodactyl\Models\Server                                            $server
-     * @param string                                                                $force
-     * @return \Illuminate\Http\Response
-     *
      * @throws \Pterodactyl\Exceptions\DisplayException
      */
     public function delete(ServerWriteRequest $request, Server $server, string $force = ''): Response

@@ -8,8 +8,6 @@ class UpdateLocationRequest extends StoreLocationRequest
 {
     /**
      * Determine if the requested location exists on the Panel.
-     *
-     * @return bool
      */
     public function resourceExists(): bool
     {
@@ -20,14 +18,12 @@ class UpdateLocationRequest extends StoreLocationRequest
 
     /**
      * Rules to validate this request against.
-     *
-     * @return array
      */
     public function rules(): array
     {
         $locationId = $this->route()->parameter('location')->id;
 
-        return collect(Location::getUpdateRulesForId($locationId))->only([
+        return collect(Location::getRulesForUpdate($locationId))->only([
             'short',
             'long',
         ])->toArray();

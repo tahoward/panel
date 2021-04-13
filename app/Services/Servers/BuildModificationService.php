@@ -2,182 +2,155 @@
 
 namespace Pterodactyl\Services\Servers;
 
+use Illuminate\Support\Arr;
 use Pterodactyl\Models\Server;
-use GuzzleHttp\Exception\RequestException;
+use Pterodactyl\Models\Allocation;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Database\ConnectionInterface;
 use Pterodactyl\Exceptions\DisplayException;
-use Pterodactyl\Exceptions\Repository\RecordNotFoundException;
-use Pterodactyl\Contracts\Repository\ServerRepositoryInterface;
-use Pterodactyl\Contracts\Repository\AllocationRepositoryInterface;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Pterodactyl\Repositories\Wings\DaemonServerRepository;
 use Pterodactyl\Exceptions\Http\Connection\DaemonConnectionException;
-use Pterodactyl\Contracts\Repository\Daemon\ServerRepositoryInterface as DaemonServerRepositoryInterface;
 
 class BuildModificationService
 {
-    /**
-     * @var \Pterodactyl\Contracts\Repository\AllocationRepositoryInterface
-     */
-    private $allocationRepository;
-
     /**
      * @var \Illuminate\Database\ConnectionInterface
      */
     private $connection;
 
     /**
-     * @var \Pterodactyl\Contracts\Repository\Daemon\ServerRepositoryInterface
+     * @var \Pterodactyl\Repositories\Wings\DaemonServerRepository
      */
     private $daemonServerRepository;
 
     /**
-     * @var \Pterodactyl\Contracts\Repository\ServerRepositoryInterface
+     * @var \Pterodactyl\Services\Servers\ServerConfigurationStructureService
      */
-    private $repository;
+    private $structureService;
 
     /**
      * BuildModificationService constructor.
      *
-     * @param \Pterodactyl\Contracts\Repository\AllocationRepositoryInterface    $allocationRepository
-     * @param \Illuminate\Database\ConnectionInterface                           $connection
-     * @param \Pterodactyl\Contracts\Repository\Daemon\ServerRepositoryInterface $daemonServerRepository
-     * @param \Pterodactyl\Contracts\Repository\ServerRepositoryInterface        $repository
+     * @param \Pterodactyl\Services\Servers\ServerConfigurationStructureService $structureService
      */
     public function __construct(
-        AllocationRepositoryInterface $allocationRepository,
+        ServerConfigurationStructureService $structureService,
         ConnectionInterface $connection,
-        DaemonServerRepositoryInterface $daemonServerRepository,
-        ServerRepositoryInterface $repository
+        DaemonServerRepository $daemonServerRepository
     ) {
-        $this->allocationRepository = $allocationRepository;
         $this->daemonServerRepository = $daemonServerRepository;
         $this->connection = $connection;
-        $this->repository = $repository;
+        $this->structureService = $structureService;
     }
 
     /**
      * Change the build details for a specified server.
      *
-     * @param \Pterodactyl\Models\Server $server
-     * @param array                      $data
      * @return \Pterodactyl\Models\Server
      *
+     * @throws \Throwable
      * @throws \Pterodactyl\Exceptions\DisplayException
-     * @throws \Pterodactyl\Exceptions\Model\DataValidationException
-     * @throws \Pterodactyl\Exceptions\Repository\RecordNotFoundException
      */
     public function handle(Server $server, array $data)
     {
-        $build = [];
         $this->connection->beginTransaction();
 
         $this->processAllocations($server, $data);
+
         if (isset($data['allocation_id']) && $data['allocation_id'] != $server->allocation_id) {
             try {
-                $allocation = $this->allocationRepository->findFirstWhere([
-                    ['id', '=', $data['allocation_id']],
-                    ['server_id', '=', $server->id],
-                ]);
-            } catch (RecordNotFoundException $ex) {
-                throw new DisplayException(trans('admin/server.exceptions.default_allocation_not_found'));
+                Allocation::query()->where('id', $data['allocation_id'])->where('server_id', $server->id)->firstOrFail();
+            } catch (ModelNotFoundException $ex) {
+                throw new DisplayException('The requested default allocation is not currently assigned to this server.');
             }
-
-            $build['default'] = ['ip' => $allocation->ip, 'port' => $allocation->port];
         }
 
-        $server = $this->repository->withFreshModel()->update($server->id, [
-            'oom_disabled' => array_get($data, 'oom_disabled'),
-            'memory' => array_get($data, 'memory'),
-            'swap' => array_get($data, 'swap'),
-            'io' => array_get($data, 'io'),
-            'cpu' => array_get($data, 'cpu'),
-            'disk' => array_get($data, 'disk'),
-            'allocation_id' => array_get($data, 'allocation_id'),
-            'database_limit' => array_get($data, 'database_limit'),
-            'allocation_limit' => array_get($data, 'allocation_limit'),
-        ]);
+        // If any of these values are passed through in the data array go ahead and set
+        // them correctly on the server model.
+        $merge = Arr::only($data, ['oom_disabled', 'memory', 'swap', 'io', 'cpu', 'threads', 'disk', 'allocation_id']);
 
-        $allocations = $this->allocationRepository->findWhere([['server_id', '=', $server->id]]);
+        $server->forceFill(array_merge($merge, [
+            'database_limit' => Arr::get($data, 'database_limit', 0) ?? null,
+            'allocation_limit' => Arr::get($data, 'allocation_limit', 0) ?? null,
+            'backup_limit' => Arr::get($data, 'backup_limit', 0) ?? 0,
+        ]))->saveOrFail();
 
-        $build['oom_disabled'] = $server->oom_disabled;
-        $build['memory'] = (int) $server->memory;
-        $build['swap'] = (int) $server->swap;
-        $build['io'] = (int) $server->io;
-        $build['cpu'] = (int) $server->cpu;
-        $build['disk'] = (int) $server->disk;
-        $build['ports|overwrite'] = $allocations->groupBy('ip')->map(function ($item) {
-            return $item->pluck('port');
-        })->toArray();
+        $server = $server->fresh();
 
-        try {
-            $this->daemonServerRepository->setServer($server)->update(['build' => $build]);
-            $this->connection->commit();
-        } catch (RequestException $exception) {
-            throw new DaemonConnectionException($exception);
+        $updateData = $this->structureService->handle($server);
+
+        // Because Wings always fetches an updated configuration from the Panel when booting
+        // a server this type of exception can be safely "ignored" and just written to the logs.
+        // Ideally this request succeedes so we can apply resource modifications on the fly
+        // but if it fails it isn't the end of the world.
+        if (!empty($updateData['build'])) {
+            try {
+                $this->daemonServerRepository->setServer($server)->update([
+                    'build' => $updateData['build'],
+                ]);
+            } catch (DaemonConnectionException $exception) {
+                Log::warning($exception, ['server_id' => $server->id]);
+            }
         }
+
+        $this->connection->commit();
 
         return $server;
     }
 
     /**
-     * Process the allocations being assigned in the data and ensure they
-     * are available for a server.
-     *
-     * @param \Pterodactyl\Models\Server $server
-     * @param array                      $data
+     * Process the allocations being assigned in the data and ensure they are available for a server.
      *
      * @throws \Pterodactyl\Exceptions\DisplayException
      */
     private function processAllocations(Server $server, array &$data)
     {
-        $firstAllocationId = null;
-
-        if (! array_key_exists('add_allocations', $data) && ! array_key_exists('remove_allocations', $data)) {
+        if (empty($data['add_allocations']) && empty($data['remove_allocations'])) {
             return;
         }
 
-        // Handle the addition of allocations to this server.
-        if (array_key_exists('add_allocations', $data) && ! empty($data['add_allocations'])) {
-            $unassigned = $this->allocationRepository->getUnassignedAllocationIds($server->node_id);
+        // Handle the addition of allocations to this server. Only assign allocations that are not currently
+        // assigned to a different server, and only allocations on the same node as the server.
+        if (!empty($data['add_allocations'])) {
+            $query = Allocation::query()
+                ->where('node_id', $server->node_id)
+                ->whereIn('id', $data['add_allocations'])
+                ->whereNull('server_id');
 
-            $updateIds = [];
-            foreach ($data['add_allocations'] as $allocation) {
-                if (! in_array($allocation, $unassigned)) {
-                    continue;
-                }
+            // Keep track of all the allocations we're just now adding so that we can use the first
+            // one to reset the default allocation to.
+            $freshlyAllocated = $query->pluck('id')->first();
 
-                $firstAllocationId = $firstAllocationId ?? $allocation;
-                $updateIds[] = $allocation;
-            }
-
-            if (! empty($updateIds)) {
-                $this->allocationRepository->updateWhereIn('id', $updateIds, ['server_id' => $server->id]);
-            }
+            $query->update(['server_id' => $server->id, 'notes' => null]);
         }
 
-        // Handle removal of allocations from this server.
-        if (array_key_exists('remove_allocations', $data) && ! empty($data['remove_allocations'])) {
-            $assigned = $this->allocationRepository->getAssignedAllocationIds($server->id);
-
-            $updateIds = [];
+        if (!empty($data['remove_allocations'])) {
             foreach ($data['remove_allocations'] as $allocation) {
-                if (! in_array($allocation, $assigned)) {
-                    continue;
-                }
-
-                if ($allocation == $data['allocation_id']) {
-                    if (is_null($firstAllocationId)) {
-                        throw new DisplayException(trans('admin/server.exceptions.no_new_default_allocation'));
+                // If we are attempting to remove the default allocation for the server, see if we can reassign
+                // to the first provided value in add_allocations. If there is no new first allocation then we
+                // will throw an exception back.
+                if ($allocation === ($data['allocation_id'] ?? $server->allocation_id)) {
+                    if (empty($freshlyAllocated)) {
+                        throw new DisplayException('You are attempting to delete the default allocation for this server but there is no fallback allocation to use.');
                     }
 
-                    $data['allocation_id'] = $firstAllocationId;
+                    // Update the default allocation to be the first allocation that we are creating.
+                    $data['allocation_id'] = $freshlyAllocated;
                 }
-
-                $updateIds[] = $allocation;
             }
 
-            if (! empty($updateIds)) {
-                $this->allocationRepository->updateWhereIn('id', $updateIds, ['server_id' => null]);
-            }
+            // Remove any of the allocations we got that are currently assigned to this server on
+            // this node. Also set the notes to null, otherwise when re-allocated to a new server those
+            // notes will be carried over.
+            Allocation::query()->where('node_id', $server->node_id)
+                ->where('server_id', $server->id)
+                // Only remove the allocations that we didn't also attempt to add to the server...
+                ->whereIn('id', array_diff($data['remove_allocations'], $data['add_allocations'] ?? []))
+                ->update([
+                    'notes' => null,
+                    'server_id' => null,
+                ]);
         }
     }
 }

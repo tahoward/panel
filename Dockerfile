@@ -1,26 +1,39 @@
-FROM alpine:3.8
-
+# Stage 0:
+# Build the assets that are needed for the frontend. This build stage is then discarded
+# since we won't need NodeJS anymore in the future. This Docker image ships a final production
+# level distribution of Pterodactyl.
+FROM mhart/alpine-node:14
 WORKDIR /app
-
-RUN apk add --no-cache --update ca-certificates certbot nginx dcron curl tini php7 php7-xml php7-xmlwriter php7-bcmath php7-common php7-dom php7-fpm php7-gd php7-mbstring php7-openssl php7-zip php7-pdo php7-phar php7-json php7-pdo_mysql php7-session php7-ctype php7-tokenizer php7-zlib php7-simplexml php7-fileinfo supervisor \
-    && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-
 COPY . ./
+RUN yarn install --frozen-lockfile \
+    && yarn run build:production
 
-RUN cp .env.example .env \
- && composer install --no-dev --optimize-autoloader \
- && rm .env \
- && chown -R nginx:nginx . && chmod -R 777 storage/* bootstrap/cache 
+# Stage 1:
+# Build the actual container with all of the needed PHP dependencies that will run the application.
+FROM php:7.4-fpm-alpine
+WORKDIR /app
+COPY . ./
+COPY --from=0 /app/public/assets ./public/assets
+RUN apk add --no-cache --update ca-certificates dcron curl git supervisor tar unzip nginx libpng-dev libxml2-dev libzip-dev certbot \
+    && docker-php-ext-configure zip \
+    && docker-php-ext-install bcmath gd pdo_mysql zip \
+    && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
+    && cp .env.example .env \
+    && mkdir -p bootstrap/cache/ storage/logs storage/framework/sessions storage/framework/views storage/framework/cache \
+    && chmod 777 -R bootstrap storage \
+    && composer install --no-dev --optimize-autoloader \
+    && rm -rf .env bootstrap/cache/*.php \
+    && chown -R nginx:nginx .
 
-RUN cp .dev/docker/default.conf /etc/nginx/conf.d/default.conf \
- && cp .dev/docker/www.conf /etc/php7/php-fpm.d/www.conf \
- && cat .dev/docker/supervisord.conf > /etc/supervisord.conf \
- && echo "* * * * * /usr/bin/php /app/artisan schedule:run >> /dev/null 2>&1" >> /var/spool/cron/crontabs/root \
- && sed -i s/ssl_session_cache/#ssl_session_cache/g /etc/nginx/nginx.conf \
- && mkdir -p /var/run/php /var/run/nginx
+RUN rm /usr/local/etc/php-fpm.d/www.conf.default \
+    && echo "* * * * * /usr/local/bin/php /app/artisan schedule:run >> /dev/null 2>&1" >> /var/spool/cron/crontabs/root \
+    && sed -i s/ssl_session_cache/#ssl_session_cache/g /etc/nginx/nginx.conf \
+    && mkdir -p /var/run/php /var/run/nginx
+
+COPY .github/docker/default.conf /etc/nginx/conf.d/default.conf
+COPY .github/docker/www.conf /usr/local/etc/php-fpm.d/www.conf
+COPY .github/docker/supervisord.conf /etc/supervisord.conf
 
 EXPOSE 80 443
-
-ENTRYPOINT ["/bin/ash", ".dev/docker/entrypoint.sh"]
-
+ENTRYPOINT ["/bin/ash", ".github/docker/entrypoint.sh"]
 CMD [ "supervisord", "-n", "-c", "/etc/supervisord.conf" ]

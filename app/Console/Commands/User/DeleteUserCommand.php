@@ -9,10 +9,10 @@
 
 namespace Pterodactyl\Console\Commands\User;
 
+use Pterodactyl\Models\User;
 use Webmozart\Assert\Assert;
 use Illuminate\Console\Command;
 use Pterodactyl\Services\Users\UserDeletionService;
-use Pterodactyl\Contracts\Repository\UserRepositoryInterface;
 
 class DeleteUserCommand extends Command
 {
@@ -38,30 +38,30 @@ class DeleteUserCommand extends Command
 
     /**
      * DeleteUserCommand constructor.
-     *
-     * @param \Pterodactyl\Services\Users\UserDeletionService           $deletionService
-     * @param \Pterodactyl\Contracts\Repository\UserRepositoryInterface $repository
      */
-    public function __construct(
-        UserDeletionService $deletionService,
-        UserRepositoryInterface $repository
-    ) {
+    public function __construct(UserDeletionService $deletionService)
+    {
         parent::__construct();
 
         $this->deletionService = $deletionService;
-        $this->repository = $repository;
     }
 
     /**
      * @return bool
+     *
      * @throws \Pterodactyl\Exceptions\DisplayException
      */
     public function handle()
     {
         $search = $this->option('user') ?? $this->ask(trans('command/messages.user.search_users'));
-        Assert::notEmpty($search, 'Search term must be a non-null value, received %s.');
+        Assert::notEmpty($search, 'Search term should be an email address, got: %s.');
 
-        $results = $this->repository->setSearchTerm($search)->all();
+        $results = User::query()
+            ->where('id', 'LIKE', "$search%")
+            ->orWhere('username', 'LIKE', "$search%")
+            ->orWhere('email', 'LIKE', "$search%")
+            ->get();
+
         if (count($results) < 1) {
             $this->error(trans('command/messages.user.no_users_found'));
             if ($this->input->isInteractive()) {
@@ -78,7 +78,7 @@ class DeleteUserCommand extends Command
             }
 
             $this->table(['User ID', 'Email', 'Name'], $tableValues);
-            if (! $deleteUser = $this->ask(trans('command/messages.user.select_search_user'))) {
+            if (!$deleteUser = $this->ask(trans('command/messages.user.select_search_user'))) {
                 return $this->handle();
             }
         } else {
@@ -91,7 +91,7 @@ class DeleteUserCommand extends Command
             $deleteUser = $results->first();
         }
 
-        if ($this->confirm(trans('command/messages.user.confirm_delete')) || ! $this->input->isInteractive()) {
+        if ($this->confirm(trans('command/messages.user.confirm_delete')) || !$this->input->isInteractive()) {
             $this->deletionService->handle($deleteUser);
             $this->info(trans('command/messages.user.deleted'));
         }

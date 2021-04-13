@@ -2,22 +2,53 @@
 
 namespace Pterodactyl\Http\Controllers\Api\Client\Servers;
 
+use Carbon\Carbon;
 use Pterodactyl\Models\Server;
+use Illuminate\Cache\Repository;
 use Pterodactyl\Transformers\Api\Client\StatsTransformer;
+use Pterodactyl\Repositories\Wings\DaemonServerRepository;
 use Pterodactyl\Http\Controllers\Api\Client\ClientApiController;
 use Pterodactyl\Http\Requests\Api\Client\Servers\GetServerRequest;
 
 class ResourceUtilizationController extends ClientApiController
 {
     /**
-     * Return the current resource utilization for a server.
-     *
-     * @param \Pterodactyl\Http\Requests\Api\Client\Servers\GetServerRequest $request
-     * @return array
+     * @var \Pterodactyl\Repositories\Wings\DaemonServerRepository
      */
-    public function index(GetServerRequest $request): array
+    private DaemonServerRepository $repository;
+
+    /**
+     * @var \Illuminate\Cache\Repository
+     */
+    private Repository $cache;
+
+    /**
+     * ResourceUtilizationController constructor.
+     */
+    public function __construct(Repository $cache, DaemonServerRepository $repository)
     {
-        return $this->fractal->item($request->getModel(Server::class))
+        parent::__construct();
+
+        $this->cache = $cache;
+        $this->repository = $repository;
+    }
+
+    /**
+     * Return the current resource utilization for a server. This value is cached for up to
+     * 20 seconds at a time to ensure that repeated requests to this endpoint do not cause
+     * a flood of unnecessary API calls.
+     *
+     * @throws \Pterodactyl\Exceptions\Http\Connection\DaemonConnectionException
+     */
+    public function __invoke(GetServerRequest $request, Server $server): array
+    {
+        $stats = $this->cache
+            ->tags(['resources'])
+            ->remember($server->uuid, Carbon::now()->addSeconds(20), function () use ($server) {
+                return $this->repository->setServer($server)->getDetails();
+            });
+
+        return $this->fractal->item($stats)
             ->transformWith($this->getTransformer(StatsTransformer::class))
             ->toArray();
     }

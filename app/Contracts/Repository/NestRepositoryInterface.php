@@ -14,9 +14,10 @@ use Pterodactyl\Models\Nest;
 interface NestRepositoryInterface extends RepositoryInterface
 {
     /**
-     * Return a nest or all nests with their associated eggs, variables, and packs.
+     * Return a nest or all nests with their associated eggs and variables.
      *
      * @param int $id
+     *
      * @return \Illuminate\Database\Eloquent\Collection|\Pterodactyl\Models\Nest
      *
      * @throws \Pterodactyl\Exceptions\Repository\RecordNotFoundException
@@ -24,9 +25,8 @@ interface NestRepositoryInterface extends RepositoryInterface
     public function getWithEggs(int $id = null);
 
     /**
-     * Return a nest or all nests and the count of eggs, packs, and servers for that nest.
+     * Return a nest or all nests and the count of eggs and servers for that nest.
      *
-     * @param int|null $id
      * @return \Pterodactyl\Models\Nest|\Illuminate\Database\Eloquent\Collection
      *
      * @throws \Pterodactyl\Exceptions\Repository\RecordNotFoundException
@@ -35,9 +35,6 @@ interface NestRepositoryInterface extends RepositoryInterface
 
     /**
      * Return a nest along with its associated eggs and the servers relation on those eggs.
-     *
-     * @param int $id
-     * @return \Pterodactyl\Models\Nest
      *
      * @throws \Pterodactyl\Exceptions\Repository\RecordNotFoundException
      */

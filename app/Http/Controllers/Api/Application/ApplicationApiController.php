@@ -5,6 +5,7 @@ namespace Pterodactyl\Http\Controllers\Api\Application;
 use Illuminate\Http\Request;
 use Webmozart\Assert\Assert;
 use Illuminate\Http\Response;
+use Illuminate\Support\Collection;
 use Illuminate\Container\Container;
 use Pterodactyl\Http\Controllers\Controller;
 use Pterodactyl\Extensions\Spatie\Fractalistic\Fractal;
@@ -30,7 +31,10 @@ abstract class ApplicationApiController extends Controller
         Container::getInstance()->call([$this, 'loadDependencies']);
 
         // Parse all of the includes to use on this request.
-        $includes = collect(explode(',', $this->request->input('include', '')))->map(function ($value) {
+        $input = $this->request->input('include', []);
+        $input = is_array($input) ? $input : explode(',', $input);
+
+        $includes = (new Collection($input))->map(function ($value) {
             return trim($value);
         })->filter()->toArray();
 
@@ -41,9 +45,6 @@ abstract class ApplicationApiController extends Controller
     /**
      * Perform dependency injection of certain classes needed for core functionality
      * without littering the constructors of classes that extend this abstract.
-     *
-     * @param \Pterodactyl\Extensions\Spatie\Fractalistic\Fractal $fractal
-     * @param \Illuminate\Http\Request                            $request
      */
     public function loadDependencies(Fractal $fractal, Request $request)
     {
@@ -54,7 +55,6 @@ abstract class ApplicationApiController extends Controller
     /**
      * Return an instance of an application transformer.
      *
-     * @param string $abstract
      * @return \Pterodactyl\Transformers\Api\Application\BaseTransformer
      */
     public function getTransformer(string $abstract)
@@ -70,8 +70,6 @@ abstract class ApplicationApiController extends Controller
 
     /**
      * Return a HTTP/204 response for the API.
-     *
-     * @return \Illuminate\Http\Response
      */
     protected function returnNoContent(): Response
     {
